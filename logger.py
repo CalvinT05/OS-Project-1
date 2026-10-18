@@ -1,0 +1,2 @@
+def format_entry(line: str, now: datetime) -> str:
+def main() -> None:
