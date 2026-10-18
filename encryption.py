@@ -30,10 +30,47 @@ class EncryptionService:
     def __init__(self):
         self.passkey = None
 
-    def handle(self, line: str) -> str: ...
+    def handle(self, line: str) -> str:
+        command = line.split(" ", 1)
+        name = command[0]
+        arg = command[1]
+        if name == "QUIT":
+            return None
+        if name == "PASS":
+            return self.set_passkey(arg)
+        if name == "ENCRYPT":
+            return self.encrypt(arg)
+        if name == "DECRYPT":
+            return self.decrypt(arg)
+        return "ERROR Unknown command"
 
-    def _set_pass(self, arg: str) -> str: ...
-    def _encrypt(self, arg: str) -> str: ...
-    def _decrypt(self, arg: str) -> str: ...
+    def set_passkey(self, arg: str) -> str:
+        if not arg:
+            return "ERROR No argument"
+        if not arg.isalpha():
+            return "ERROR Passkey must contain only letters"
+        
+        self.passkey = arg.upper()
+        return "RESULT"
+
+    def encrypt(self, arg: str) -> str:
+        if self.passkey is None:
+            return "ERROR Passkey not set"
+        if not arg:
+            return "ERROR No argument"
+        if not arg.isalpha():
+            return "ERROR Text must contain only letters"
+        
+        return "RESULT " + vigenere_encrypt(arg.upper(), self.passkey)
+
+    def decrypt(self, arg: str) -> str:
+        if self.passkey is None:
+            return "ERROR Passkey not set"
+        if not arg:
+            return "ERROR No argument"
+        if not arg.isalpha():
+            return "ERROR Text must contain only letters"
+        
+        return "RESULT " + vigenere_decrypt(arg.upper(), self.passkey)
 
 def main() -> None: ...
