@@ -6,7 +6,7 @@ def format_entry(line: str, now: datetime) -> str:
     
     message = line.split(' ', 1)
     action = message[0]
-    text = message[1]
+    text = message[1] if len(message) > 1 else None
     
     entry = now.strftime("%Y-%m-%d %H:%M") + " [" + action + ']'
 

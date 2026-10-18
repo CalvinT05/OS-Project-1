@@ -28,3 +28,10 @@ class TestLogger(unittest.TestCase):
             format_entry("START Logging Started.", now),
             "2026-10-18 18:00 [START] Logging Started."
         )
+    
+    def test_no_message(self):
+        now = datetime.datetime(2026, 10, 18, 18, 0)
+        self.assertEqual(
+            format_entry("EXIT", now),
+            "2026-10-18 18:00 [EXIT]"
+        )
