@@ -31,7 +31,7 @@ class EncryptionService:
         self.passkey = None
 
     def handle(self, line: str) -> str:
-        command = line.split(" ", 1)
+        command = line.split(' ', 1)
         name = command[0]
         arg = command[1]
         if name == "QUIT":
