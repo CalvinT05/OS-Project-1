@@ -31,7 +31,7 @@ class EncryptionService:
         self.passkey = None
 
     def handle(self, line: str) -> str:
-        command = line.split(' ', 1)
+        command = line.strip().split(' ', 1)
         name = command[0]
         arg = command[1] if len(command) > 1 else None
         if name == "QUIT":
@@ -54,7 +54,7 @@ class EncryptionService:
         return "RESULT"
 
     def encrypt(self, arg: str) -> str:
-        if self.passkey is None:
+        if self.passkey == None:
             return "ERROR Passkey not set"
         if not arg:
             return "ERROR No argument"
@@ -64,7 +64,7 @@ class EncryptionService:
         return "RESULT " + vigenere_encrypt(arg.upper(), self.passkey)
 
     def decrypt(self, arg: str) -> str:
-        if self.passkey is None:
+        if self.passkey == None:
             return "ERROR Passkey not set"
         if not arg:
             return "ERROR No argument"
@@ -73,4 +73,14 @@ class EncryptionService:
         
         return "RESULT " + vigenere_decrypt(arg.upper(), self.passkey)
 
-def main() -> None: ...
+def main() -> None:
+    service = EncryptionService()
+    for line in sys.stdin:
+        response = service.handle(line)
+        if response == None:
+            break
+        print(response)
+        sys.stdout.flush()
+
+if __name__ == "__main__":
+    main()
