@@ -57,6 +57,7 @@ class History:
     def print_history(self) -> None:
         for i, item in enumerate(self.items, start = 1):
             print(str(i) + '\t' + item)
+
     def select(self) -> str | None:
         if not self.is_empty():
             print("Entry History:")
@@ -81,11 +82,7 @@ class Driver:
     def __init__(self, logfile: str):
         self.logger = LoggerClient(logfile)
         self.encryption = EncryptionClient()
-        self.history = {
-            "password": History(),
-            "encrypt": History(),
-            "decrypt": History()
-        }
+        self.history = History()
 
         self.commands = {
             "password": self.cmd_password,
@@ -117,14 +114,13 @@ class Driver:
                 self.logger.log("COMMAND", command)
                 handler()
         except (EOFError, KeyboardInterrupt):
-            # Input closed or Ctrl-C: still shut the child processes down cleanly.
             print()
             self.logger.log("COMMAND", "quit (input ended)")
 
         self.cmd_quit()
 
     def cmd_password(self) -> None:
-        password = self._get_input_string("password", save_to_history=False)
+        password = self.input_with_history(save_to_history=False)
         if password is None:
             return
 
@@ -133,37 +129,31 @@ class Driver:
         if kind == "RESULT":
             print("Passkey set")
             self.logger.log("RESULT", "Passkey set")
-            if password not in self.history["password"].items:
-                self.history["password"].add(password)
         else:
             print("Error: " + message)
             self.logger.log("ERROR", message)
 
     def cmd_encrypt(self) -> None:
-        self._crypt("ENCRYPT", "encrypt")
+        self._crypt("ENCRYPT")
 
     def cmd_decrypt(self) -> None:
-        self._crypt("DECRYPT", "decrypt")
+        self._crypt("DECRYPT")
 
     def cmd_history(self) -> None:
-        total = 0
-        for name, hist in self.history.items():
-            print(name.capitalize() + " history:")
-            if hist.is_empty():
-                print("\t(empty)")
-            else:
-                hist.print_history()
-            total += len(hist.items)
-        self.logger.log("RESULT", "Showed " + str(total) + " history entries")
+        print("History:")
+        if self.history.is_empty():
+            print("\t(empty)")
+        else:
+            self.history.print_history()
+        self.logger.log("RESULT", "Showed " + str(len(self.history.items)) + " history entries")
 
     def cmd_quit(self) -> None:
         self.encryption.close()
         self.logger.log("EXIT", "Driver exiting")
         self.logger.close()
 
-    def _crypt(self, command: str, name: str) -> None:
-        """Shared work for encrypt and decrypt."""
-        text = self._get_input_string(name, save_to_history=True)
+    def _crypt(self, command: str) -> None:
+        text = self.input_with_history(save_to_history=True)
         if text is None:
             return
 
@@ -172,20 +162,14 @@ class Driver:
 
         if kind == "RESULT":
             print("Result: " + message)
-            self.history[name].add(message)
+            self.history.add(message)
             self.logger.log("RESULT", message)
         else:
             print("Error: " + message)
             self.logger.log("ERROR", message)
 
-    def _get_input_string(self, history_name: str, save_to_history: bool) -> str | None:
-        """Pick from this command's history or type a new string.
-
-        Returns the validated, uppercased string, or None if the input was
-        invalid (the error is printed and logged here).
-        """
-        history = self.history[history_name]
-        text = history.select()
+    def input_with_history(self, save_to_history: bool) -> str | None:
+        text = self.history.select()
         if text is None:
             return None
 
@@ -197,8 +181,8 @@ class Driver:
 
         text = text.upper()
 
-        if save_to_history and text not in history.items:
-            history.add(text)
+        if save_to_history and text not in self.history.items:
+            self.history.add(text)
         return text
 
 def is_letters_only(s: str) -> bool:
