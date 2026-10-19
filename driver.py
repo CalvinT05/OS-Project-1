@@ -33,9 +33,11 @@ class EncryptionClient:
         self.proc.stdin.write(command + ' ' + arg + '\n')
         self.proc.stdin.flush()
         reply = self.proc.stdout.readline().rstrip('\n')
-        type, _, message = reply.partition(' ')
-        return type, message
-    
+        if not reply:
+            return "ERROR", "Encryption program did not respond"
+        kind, _, message = reply.partition(' ')
+        return kind, message
+
     def close(self) -> None:
         self.proc.stdin.write("QUIT\n")
         self.proc.stdin.flush()
@@ -49,13 +51,12 @@ class History:
     def add(self, s: str) -> None:
         self.items.append(s)
 
-    def is_empty(self) -> bool: 
+    def is_empty(self) -> bool:
         return not self.items
 
     def print_history(self) -> None:
         for i, item in enumerate(self.items, start = 1):
-            print(str(i) + "\t" + item)
-    
+            print(str(i) + '\t' + item)
     def select(self) -> str | None:
         if not self.is_empty():
             print("Entry History:")
@@ -74,7 +75,6 @@ class History:
             return input("Enter string: ")
 
         print("Please enter a valid input.")
-
 
 
 class Driver:
@@ -97,57 +97,122 @@ class Driver:
     def run(self) -> None:
         self.logger.log("START", "Driver started.")
 
-        while True:
-            print("""
-Commands:
-    password    set passkey
-    encrypt     encrypt a string
-    decrypt     decrypt a string
-    history     show passkey history
-    quit        exit program
-""")
+        try:
+            while True:
+                print_menu()
 
-            command = input("Enter command: ").strip().lower()
+                command = input("Enter command: ").strip().lower()
 
-            if command == "quit":
-                self.logger.log("COMMAND", "quit")
-                break
-            
-            handler = self.commands.get(command)
+                if command == "quit":
+                    self.logger.log("COMMAND", "quit")
+                    break
 
-            if handler == None:
-                print("Error: Unknown command.")
-                self.logger.log("ERROR", "Unknown command")
-                continue
+                handler = self.commands.get(command)
 
-            self.logger.log("COMMAND", command)
-            handler()
-        
+                if handler is None:
+                    print("Error: Unknown command.")
+                    self.logger.log("ERROR", "Unknown command")
+                    continue
+
+                self.logger.log("COMMAND", command)
+                handler()
+        except (EOFError, KeyboardInterrupt):
+            # Input closed or Ctrl-C: still shut the child processes down cleanly.
+            print()
+            self.logger.log("COMMAND", "quit (input ended)")
+
+        self.cmd_quit()
+
+    def cmd_password(self) -> None:
+        password = self._get_input_string("password", save_to_history=False)
+        if password is None:
+            return
+
+        kind, message = self.encryption.send("PASS", password)
+
+        if kind == "RESULT":
+            print("Passkey set")
+            self.logger.log("RESULT", "Passkey set")
+            if password not in self.history["password"].items:
+                self.history["password"].add(password)
+        else:
+            print("Error: " + message)
+            self.logger.log("ERROR", message)
+
+    def cmd_encrypt(self) -> None:
+        self._crypt("ENCRYPT", "encrypt")
+
+    def cmd_decrypt(self) -> None:
+        self._crypt("DECRYPT", "decrypt")
+
+    def cmd_history(self) -> None:
+        total = 0
+        for name, hist in self.history.items():
+            print(name.capitalize() + " history:")
+            if hist.is_empty():
+                print("\t(empty)")
+            else:
+                hist.print_history()
+            total += len(hist.items)
+        self.logger.log("RESULT", "Showed " + str(total) + " history entries")
+
+    def cmd_quit(self) -> None:
         self.encryption.close()
         self.logger.log("EXIT", "Driver exiting")
         self.logger.close()
 
-    def cmd_password(self) -> None:
-        password = self.history["password"].select()
-        if password == None:
+    def _crypt(self, command: str, name: str) -> None:
+        """Shared work for encrypt and decrypt."""
+        text = self._get_input_string(name, save_to_history=True)
+        if text is None:
             return
-        type, message = self.encryption.send("PASS", password)
 
-        if type == "RESULT":
-            print("Passkey set")
-            self.logger.log("RESULT", "Passkey set")
-            self.history["password"].add(password)
+        self.logger.log("INPUT", text)
+        kind, message = self.encryption.send(command, text)
+
+        if kind == "RESULT":
+            print("Result: " + message)
+            self.history[name].add(message)
+            self.logger.log("RESULT", message)
         else:
-            print("Error: issue setting passkey")
+            print("Error: " + message)
+            self.logger.log("ERROR", message)
 
-    def cmd_encrypt(self) -> None: ...
-    def cmd_decrypt(self) -> None: ...
-    def cmd_history(self) -> None: ...
-    def cmd_quit(self) -> None: ...
-    def _get_input_string(self, prompt: str, save_to_history: bool) -> str | None: ...
+    def _get_input_string(self, history_name: str, save_to_history: bool) -> str | None:
+        """Pick from this command's history or type a new string.
 
-def is_letters_only(s: str) -> bool: ...
-def print_menu() -> None: ...
+        Returns the validated, uppercased string, or None if the input was
+        invalid (the error is printed and logged here).
+        """
+        history = self.history[history_name]
+        text = history.select()
+        if text is None:
+            return None
+
+        text = text.strip()
+        if not is_letters_only(text):
+            print("Error: input must contain only letters.")
+            self.logger.log("ERROR", "Input must contain only letters")
+            return None
+
+        text = text.upper()
+
+        if save_to_history and text not in history.items:
+            history.add(text)
+        return text
+
+def is_letters_only(s: str) -> bool:
+    return s.isascii() and s.isalpha()
+
+def print_menu() -> None:
+    print("""
+Commands:
+    password    set passkey
+    encrypt     encrypt a string
+    decrypt     decrypt a string
+    history     show history
+    quit        exit program
+""")
 
 def main() -> None:
     if len(sys.argv) != 2:
